@@ -14,7 +14,7 @@
         background-attachment: fixed;
         margin: 0;
         padding: 0;
-        backdrop-filter: blur(2px);
+        backdrop-filter: blur(1px);
     }
     header {
         background: rgba(0, 100, 0, 0.9);
@@ -50,7 +50,8 @@
     }
     select,
     textarea,
-    button {
+    button,
+    input[type=file] {
         width: 100%;
         padding: 14px;
         border: 2px solid #8bc34a;
@@ -61,7 +62,8 @@
         background: #f1f8e9;
     }
     textarea:focus,
-    select:focus {
+    select:focus,
+    input[type=file]:focus {
         border-color: #33691e;
         background: white;
     }
@@ -112,7 +114,7 @@
 </head>
 <body>
 
-<header>🇮🇳 AI Legal Aid Assistant</header>
+<header> AI Legal Aid Assistant</header>
 
 <div class="container">
 
@@ -129,43 +131,47 @@
 
     <button class="mic-btn" id="micBtn">🎤</button>
 
+    <label>Upload Document / Image</label>
+    <input type="file" id="uploadImage" accept="image/*" multiple>
+
+    <label>Enable Voice Assistant</label>
+    <select id="voiceOption">
+        <option value="off">Off</option>
+        <option value="on">On</option>
+    </select>
+
     <button onclick="sendQuery()">Ask Lawyer AI</button>
 
     <div id="responseBox"></div>
 </div>
 
 <script>
-// 🎙 Speech Recognition Setup
+// 🎙 Speech Recognition
 const micBtn = document.getElementById("micBtn");
 const queryBox = document.getElementById("userQuery");
 let recognition;
-
 if ("webkitSpeechRecognition" in window) {
     recognition = new webkitSpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.lang = "hi-IN";
-
     recognition.onstart = () => micBtn.classList.add("active");
     recognition.onend = () => micBtn.classList.remove("active");
-
     recognition.onresult = (event) => {
         queryBox.value = event.results[0][0].transcript;
     };
-} else {
-    alert("Your browser does not support voice input");
-}
-
+} else { alert("Browser does not support voice input"); }
 micBtn.addEventListener("click", () => {
     const lang = document.getElementById("language").value;
     recognition.lang = (lang === "en") ? "en-IN" : lang + "-IN";
     recognition.start();
 });
 
-// 📩 API Request
+// 📩 API Request with Voice Output
 async function sendQuery() {
     const query = queryBox.value.trim();
     const lang = document.getElementById("language").value;
+    const voice = document.getElementById("voiceOption").value;
 
     if (!query){ alert("Please enter your issue."); return; }
 
@@ -173,15 +179,25 @@ async function sendQuery() {
     responseBox.style.display = "block";
     responseBox.innerHTML = "⏳ Processing...";
 
+    // Get uploaded files
+    const files = document.getElementById('uploadImage').files;
+
     try {
         const response = await fetch("http://localhost:5000/api/legal", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ question: query, language: lang })
+            body: JSON.stringify({ question: query, language: lang, files: Array.from(files).map(f => f.name) }) ,
+            headers: { "Content-Type": "application/json" }
         });
 
         const data = await response.json();
         responseBox.innerHTML = data.answer || "No response. Try again.";
+
+        // Voice output
+        if(voice === 'on' && 'speechSynthesis' in window){
+            const utterance = new SpeechSynthesisUtterance(data.answer);
+            utterance.lang = (lang==='hi')?'hi-IN':(lang==='kn')?'kn-IN':(lang==='te')?'te-IN':'en-IN';
+            window.speechSynthesis.speak(utterance);
+        }
 
     } catch (error) {
         responseBox.innerHTML = "⚠️ Backend not connected!";
@@ -190,5 +206,4 @@ async function sendQuery() {
 </script>
 
 </body>
-
 </html>
